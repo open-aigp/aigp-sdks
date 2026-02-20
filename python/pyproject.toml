@@ -45,7 +45,7 @@ packages = ["aigp"]
 
 [project.urls]
 Homepage = "https://github.com/open-aigp/aigp"
-Documentation = "https://github.com/open-aigp/aigp/tree/main/sdks/python"
+Documentation = "https://github.com/open-aigp/aigp-sdks/tree/main/python"
 Repository = "https://github.com/open-aigp/aigp"
 Issues = "https://github.com/open-aigp/aigp/issues"
 

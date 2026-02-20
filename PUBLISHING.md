@@ -18,7 +18,7 @@ How to publish AIGP SDK packages to their language registries.
 | Java | Maven Central | `org.open-aigp:aigp-sdk` | `<dependency>` in pom.xml |
 | Kotlin | Maven Central | `org.open-aigp:aigp-kotlin-sdk` | `<dependency>` in build.gradle/pom.xml |
 | C# / .NET | NuGet | `AIGP.Sdk` | `dotnet add package AIGP.Sdk` |
-| Go | Go Modules | `github.com/open-aigp/aigp/sdks/go` | `go get github.com/open-aigp/aigp/sdks/go` |
+| Go | Go Modules | `github.com/open-aigp/aigp-sdks/go` | `go get github.com/open-aigp/aigp-sdks/go` |
 
 ---
 
@@ -198,7 +198,7 @@ https://www.nuget.org/packages/AIGP.Sdk
 
 ---
 
-## 6. Go — `github.com/open-aigp/aigp/sdks/go`
+## 6. Go — `github.com/open-aigp/aigp-sdks/go`
 
 **Directory:** `sdks/go/`
 
@@ -216,7 +216,7 @@ git push origin main --tags
 
 ### Verify
 ```bash
-go get github.com/open-aigp/aigp/sdks/go@v0.1.0
+go get github.com/open-aigp/aigp-sdks/go@v0.1.0
 ```
 
 **Status:** ⏳ Pending (just needs git push + tag)

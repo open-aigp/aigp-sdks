@@ -5,7 +5,7 @@ Go SDK for AIGP (AI Governance Proof).
 ## Install
 
 ```bash
-go get github.com/open-aigp/aigp/sdks/go
+go get github.com/open-aigp/aigp-sdks/go
 ```
 
 ## Quick Start
@@ -16,7 +16,7 @@ package main
 import (
 	"fmt"
 
-	aigp "github.com/open-aigp/aigp/sdks/go"
+	aigp "github.com/open-aigp/aigp-sdks/go"
 )
 
 func main() {
