@@ -1,0 +1,14 @@
+[package]
+name = "aigp"
+version = "0.1.0"
+edition = "2021"
+description = "AIGP — AI Governance Proof. Open standard for proving your AI agents used the approved policies, prompts, and tools."
+license = "Apache-2.0"
+repository = "https://github.com/open-aigp/aigp"
+homepage = "https://open-aigp.org"
+documentation = "https://docs.rs/aigp"
+keywords = ["aigp", "ai-governance", "governance", "audit", "tracing"]
+categories = ["api-bindings", "authentication"]
+readme = "README.md"
+
+[dependencies]

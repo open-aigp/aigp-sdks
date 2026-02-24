@@ -1,0 +1,35 @@
+{
+  "name": "@aigp/sdk",
+  "version": "0.1.0",
+  "description": "AIGP — AI Governance Proof. Open standard for proving your AI agents used the approved policies, prompts, and tools.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-aigp/aigp.git",
+    "directory": "sdks/typescript"
+  },
+  "homepage": "https://open-aigp.org",
+  "keywords": [
+    "aigp",
+    "ai-governance",
+    "governance",
+    "audit",
+    "ai-agents",
+    "tracing",
+    "lineage",
+    "merkle-proof"
+  ],
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ]
+}

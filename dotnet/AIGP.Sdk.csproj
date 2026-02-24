@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>AIGP.Sdk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>AIGP Community</Authors>
+    <Description>AIGP — AI Governance Proof. Open standard for proving your AI agents used the approved policies, prompts, and tools.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://open-aigp.org</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/open-aigp/aigp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>aigp;ai-governance;governance;audit;ai-agents;tracing;merkle-proof</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+
+</Project>

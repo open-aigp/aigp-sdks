@@ -1,0 +1,195 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AgentGP Golden Path API",
+    "version": "1.0.0",
+    "description": "Canonical API contract used by AIGP govern(agent).run(...)."
+  },
+  "servers": [
+    {
+      "url": "https://api.agentgp.ai"
+    }
+  ],
+  "paths": {
+    "/api/sdk/capabilities": {
+      "get": {
+        "operationId": "getSdkCapabilities",
+        "responses": {
+          "200": {
+            "description": "SDK capability negotiation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeCapabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/govern/step": {
+      "post": {
+        "operationId": "governStep",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GovernStepRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unified governance decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeGovernStep"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/traces/{trace_id}": {
+      "get": {
+        "operationId": "getTrace",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Canonical normalized trace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvelopeTrace"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EnvelopeBase": {
+        "type": "object",
+        "required": ["success", "data", "error", "trace_id", "governance"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "data": { "type": "object", "additionalProperties": true },
+          "error": { "type": ["object", "string", "null"] },
+          "trace_id": { "type": "string" },
+          "governance": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "EnvelopeCapabilities": {
+        "allOf": [
+          { "$ref": "#/components/schemas/EnvelopeBase" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "endpoints": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "min_sdk_version": { "type": "string" }
+                },
+                "required": ["endpoints"]
+              }
+            }
+          }
+        ]
+      },
+      "GovernStepRequest": {
+        "type": "object",
+        "required": ["agent_id", "trace_id"],
+        "properties": {
+          "agent_id": { "type": "string" },
+          "trace_id": { "type": "string" },
+          "input": {},
+          "prompt_name": { "type": "string" },
+          "prompt_variables": { "type": "object", "additionalProperties": true },
+          "policy_name": { "type": "string" },
+          "policy_variables": { "type": "object", "additionalProperties": true },
+          "tools": { "type": "array", "items": { "type": "string" } },
+          "tool_input": { "type": "object", "additionalProperties": true },
+          "governance_mode": { "type": "string" },
+          "metadata": { "type": "object", "additionalProperties": true },
+          "dry_run": { "type": "boolean" },
+          "required": {
+            "type": "object",
+            "properties": {
+              "prompts": { "type": "array", "items": { "type": "string" } },
+              "policies": { "type": "array", "items": { "type": "string" } },
+              "tools": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "EnvelopeGovernStep": {
+        "allOf": [
+          { "$ref": "#/components/schemas/EnvelopeBase" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "allowed": { "type": "boolean" },
+                  "denial_reason": { "type": "string" },
+                  "governance_hash": { "type": "string" },
+                  "prompt": { "type": "object", "additionalProperties": true },
+                  "policy": { "type": "object", "additionalProperties": true },
+                  "tools": {
+                    "type": "array",
+                    "items": { "type": "object", "additionalProperties": true }
+                  },
+                  "coverage": { "type": "object", "additionalProperties": true },
+                  "missing": { "type": "object", "additionalProperties": true }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "EnvelopeTrace": {
+        "allOf": [
+          { "$ref": "#/components/schemas/EnvelopeBase" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "trace_id": { "type": "string" },
+                  "events": {
+                    "type": "array",
+                    "items": { "type": "object", "additionalProperties": true }
+                  },
+                  "coverage": { "type": "object", "additionalProperties": true }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
