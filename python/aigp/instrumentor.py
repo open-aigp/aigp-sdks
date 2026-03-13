@@ -7,8 +7,7 @@ Handles dual-emit: every governance action produces both an AIGP event
 (compliance store) and an OTel span event (observability backend).
 
 AIGP standard event types use UPPER_SNAKE_CASE
-(e.g., ``INJECT_SUCCESS``). This SDK also normalizes legacy dotted values
-for compatibility. AIGP handles proof, transport, and OTel integration.
+(e.g., ``INJECT_SUCCESS``). AIGP handles proof, transport, and OTel integration.
 
 Usage:
     from aigp import AIGPInstrumentor
@@ -216,7 +215,7 @@ class AIGPInstrumentor:
 
         # Merkle tree governance
         if aigp_event.get("governance_merkle_tree"):
-            attrs[AIGPAttributes.MERKLE_LEAF_COUNT] = aigp_event["governance_merkle_tree"]["leaf_count"]
+            attrs[AIGPAttributes.MERKLE_RESOURCE_COUNT] = aigp_event["governance_merkle_tree"]["resource_count"]
 
         # Proof integrity fields
         if aigp_event.get("event_signature"):
@@ -345,8 +344,8 @@ class AIGPInstrumentor:
         Emit an AIGP governance event.
 
         This is the single entry point for all AIGP events. Standard AIGP
-        event types use UPPER_SNAKE_CASE (e.g., ``INJECT_SUCCESS``). Legacy
-        dotted event types are normalized for compatibility.
+        event types use UPPER_SNAKE_CASE (e.g., ``INJECT_SUCCESS``). Dotted
+        values are normalized to UPPER_SNAKE_CASE.
 
         When ``content`` is provided, AIGP computes the governance_hash
         (SHA-256). When ``resources`` is provided with multiple items,

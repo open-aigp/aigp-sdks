@@ -163,20 +163,17 @@ class AgentGPClient:
     def _normalize_envelope(payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise AgentGPClientError("AgentGP response must be a JSON object.")
-        if "success" in payload and "data" in payload:
-            envelope = {
-                "success": bool(payload.get("success")),
-                "data": payload.get("data"),
-                "error": payload.get("error"),
-                "trace_id": payload.get("trace_id", ""),
-                "governance": payload.get("governance", {}),
-            }
-            return envelope
-        # Backward-compatible coercion for legacy responses.
+        required_keys = ("success", "data", "error", "trace_id", "governance")
+        missing = [key for key in required_keys if key not in payload]
+        if missing:
+            raise AgentGPClientError(
+                "AgentGP response envelope missing required keys: "
+                + ", ".join(missing)
+            )
         return {
-            "success": True,
-            "data": payload,
-            "error": None,
+            "success": bool(payload.get("success")),
+            "data": payload.get("data"),
+            "error": payload.get("error"),
             "trace_id": payload.get("trace_id", ""),
             "governance": payload.get("governance", {}),
         }

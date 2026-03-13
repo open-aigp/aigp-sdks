@@ -803,7 +803,7 @@ class TestEventEmission:
             dec._emit = original
 
     def test_prompt_denied_emitted_on_deny(self):
-        """When denied, _emit() should be called with governance.prompt.denied."""
+        """When denied, _emit() should be called with PROMPT_DENIED."""
         import aigp.decorators as dec
 
         emitted = []

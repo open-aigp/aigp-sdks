@@ -13,7 +13,13 @@ pub const CE_SPECVERSION: &str = "1.0";
 pub const AIGP_TYPE_PREFIX: &str = "org.aigp.v1.";
 pub const AIGP_SOURCE_SCHEME: &str = "aigp://";
 pub const AIGP_DATA_SCHEMA: &str = "https://open-aigp.org/schema/aigp-event.schema.json";
+const EMPTY_GOVERNANCE_HASH_EVENT_TYPES: [&str; 3] =
+    ["AGENT_REGISTERED", "AGENT_APPROVED", "AGENT_DEACTIVATED"];
 static SEQUENCE_COUNTERS: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
+
+fn allows_empty_governance_hash(event_type: &str) -> bool {
+    EMPTY_GOVERNANCE_HASH_EVENT_TYPES.contains(&event_type.trim())
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MerkleLeaf {
@@ -39,8 +45,8 @@ pub struct MerkleInclusionProof {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GovernanceMerkleTree {
     pub algorithm: String,
-    pub leaf_count: usize,
-    pub leaves: Vec<MerkleLeaf>,
+    pub resource_count: usize,
+    pub resources: Vec<MerkleLeaf>,
     pub inclusion_proofs: Option<Vec<MerkleInclusionProof>>,
 }
 
@@ -308,14 +314,13 @@ pub fn normalize_event_type(event_type: &str) -> Result<String, String> {
         return Err("event_type must be a non-empty string".to_string());
     }
 
-    let mapped = event_type_alias(raw).unwrap_or(raw);
-    if is_valid_event_type(mapped) {
-        return Ok(mapped.to_string());
+    if is_valid_event_type(raw) {
+        return Ok(raw.to_string());
     }
 
     let mut normalized = String::new();
     let mut prev_us = false;
-    for ch in mapped.chars() {
+    for ch in raw.chars() {
         if ch.is_ascii_alphanumeric() {
             normalized.push(ch.to_ascii_uppercase());
             prev_us = false;
@@ -490,8 +495,8 @@ pub fn compute_merkle_governance_hash_with_proofs(
         root_hash: root,
         merkle_tree: Some(GovernanceMerkleTree {
             algorithm: "sha256".to_string(),
-            leaf_count: leaves.len(),
-            leaves,
+            resource_count: leaves.len(),
+            resources: leaves,
             inclusion_proofs,
         }),
     })
@@ -723,13 +728,13 @@ fn governance_merkle_tree_to_json(tree: &GovernanceMerkleTree) -> JsonValue {
     let mut obj = BTreeMap::<String, JsonValue>::new();
     obj.insert("algorithm".to_string(), JsonValue::String(tree.algorithm.clone()));
     obj.insert(
-        "leaf_count".to_string(),
-        JsonValue::Number(tree.leaf_count.to_string()),
+        "resource_count".to_string(),
+        JsonValue::Number(tree.resource_count.to_string()),
     );
     obj.insert(
-        "leaves".to_string(),
+        "resources".to_string(),
         JsonValue::Array(
-            tree.leaves
+            tree.resources
                 .iter()
                 .map(|leaf| {
                     let mut leaf_obj = BTreeMap::<String, JsonValue>::new();
@@ -882,6 +887,7 @@ pub fn create_aigp_event(options: CreateEventOptions) -> Result<AIGPEvent, Strin
     };
     let governance_hash = match options.governance_hash {
         Some(value) if !value.trim().is_empty() => value.trim().to_string(),
+        Some(_) | None if allows_empty_governance_hash(&event_type) => String::new(),
         _ => return Err("governance_hash is required and cannot be empty".to_string()),
     };
 
@@ -921,7 +927,7 @@ pub fn create_aigp_event(options: CreateEventOptions) -> Result<AIGPEvent, Strin
         signature_key_id: options.signature_key_id.unwrap_or_default(),
         sequence_number,
         causality_ref: options.causality_ref.unwrap_or_default(),
-        spec_version: options.spec_version.unwrap_or_else(|| "0.10.0".to_string()),
+        spec_version: options.spec_version.unwrap_or_else(|| "0.12".to_string()),
         governance_merkle_tree: options.governance_merkle_tree,
     })
 }
@@ -968,7 +974,7 @@ pub fn validate_aigp_event(event: &AIGPEvent) -> Vec<String> {
             );
         }
     }
-    if event.governance_hash.trim().is_empty() {
+    if event.governance_hash.trim().is_empty() && !allows_empty_governance_hash(&event.event_type) {
         errors.push("governance_hash must be a non-empty string".to_string());
     }
     if event.sequence_number < 1 {
@@ -1140,30 +1146,6 @@ pub fn build_ce_headers(
     }
 
     Ok(headers)
-}
-
-fn event_type_alias(value: &str) -> Option<&'static str> {
-    match value {
-        "governance.policy.delivered" => Some("INJECT_SUCCESS"),
-        "governance.policy.denied" => Some("INJECT_DENIED"),
-        "governance.prompt.delivered" => Some("PROMPT_USED"),
-        "governance.prompt.denied" => Some("PROMPT_DENIED"),
-        "governance.policy.violation" => Some("POLICY_VIOLATION"),
-        "governance.a2a.call" => Some("A2A_CALL"),
-        "governance.tool.invoked" => Some("TOOL_INVOKED"),
-        "governance.tool.denied" => Some("TOOL_DENIED"),
-        "governance.boundary.unverified" => Some("UNVERIFIED_BOUNDARY"),
-        "governance.inference.started" => Some("INFERENCE_STARTED"),
-        "governance.inference.completed" => Some("INFERENCE_COMPLETED"),
-        "governance.inference.blocked" => Some("INFERENCE_BLOCKED"),
-        "governance.model.loaded" => Some("MODEL_LOADED"),
-        "governance.model.switched" => Some("MODEL_SWITCHED"),
-        "governance.memory.read" => Some("MEMORY_READ"),
-        "governance.memory.written" => Some("MEMORY_WRITTEN"),
-        "governance.proof" => Some("GOVERNANCE_PROOF"),
-        "governance.proof.delivered" => Some("GOVERNANCE_PROOF"),
-        _ => None,
-    }
 }
 
 fn is_valid_event_type(value: &str) -> bool {
@@ -1672,14 +1654,14 @@ mod tests {
     use std::rc::Rc;
 
     #[test]
-    fn normalize_event_type_maps_aliases() {
+    fn normalize_event_type_normalizes_dotted_names() {
         assert_eq!(
             normalize_event_type("governance.policy.delivered").unwrap(),
-            "INJECT_SUCCESS"
+            "GOVERNANCE_POLICY_DELIVERED"
         );
         assert_eq!(
             normalize_event_type("governance.prompt.denied").unwrap(),
-            "PROMPT_DENIED"
+            "GOVERNANCE_PROMPT_DENIED"
         );
     }
 
@@ -1694,7 +1676,7 @@ mod tests {
     #[test]
     fn create_and_validate_event() {
         let event = create_aigp_event(CreateEventOptions {
-            event_type: "governance.policy.delivered".to_string(),
+            event_type: "INJECT_SUCCESS".to_string(),
             event_category: Some("Inject".to_string()),
             agent_id: "agent.test".to_string(),
             trace_id: None,
@@ -1735,7 +1717,7 @@ mod tests {
         assert_eq!(event.event_type, "INJECT_SUCCESS");
         assert_eq!(event.event_category, "inject");
         assert_eq!(event.trace_id.len(), 32);
-        assert_eq!(event.spec_version, "0.10.0");
+        assert_eq!(event.spec_version, "0.12");
         assert!(validate_aigp_event(&event).is_empty());
     }
 
@@ -1756,7 +1738,7 @@ mod tests {
         ])
         .unwrap();
         assert!(multi.merkle_tree.is_some());
-        assert_eq!(multi.merkle_tree.unwrap().leaf_count, 2);
+        assert_eq!(multi.merkle_tree.unwrap().resource_count, 2);
     }
 
     #[test]
@@ -1774,7 +1756,7 @@ mod tests {
         let tree = result.merkle_tree.unwrap();
         assert!(tree.inclusion_proofs.is_some());
         let proofs = tree.inclusion_proofs.unwrap();
-        assert_eq!(proofs.len(), tree.leaf_count);
+        assert_eq!(proofs.len(), tree.resource_count);
         for proof in &proofs {
             assert!(verify_inclusion_proof(&result.root_hash, &proof.leaf_hash, &proof.proof_path).unwrap());
         }
@@ -1926,7 +1908,7 @@ mod tests {
             signature_key_id: "".to_string(),
             sequence_number: 1,
             causality_ref: "".to_string(),
-            spec_version: "0.10.0".to_string(),
+            spec_version: "0.12".to_string(),
             governance_merkle_tree: None,
         };
 
@@ -2013,8 +1995,8 @@ mod tests {
     #[test]
     fn create_rejects_empty_governance_hash() {
         let result = create_aigp_event(CreateEventOptions {
-            event_type: "AGENT_REGISTERED".to_string(),
-            event_category: Some("agent-lifecycle".to_string()),
+            event_type: "INJECT_SUCCESS".to_string(),
+            event_category: Some("inject".to_string()),
             agent_id: "agent.test".to_string(),
             trace_id: Some("trace-550e8400-e29b-41d4-a716-446655440000".to_string()),
             governance_hash: Some(String::new()),

@@ -24,8 +24,8 @@ func TestNormalizeEventType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "INJECT_SUCCESS" {
-		t.Fatalf("expected INJECT_SUCCESS, got %q", got)
+	if got != "GOVERNANCE_POLICY_DELIVERED" {
+		t.Fatalf("expected GOVERNANCE_POLICY_DELIVERED, got %q", got)
 	}
 
 	custom, err := NormalizeEventType("myplatform.audit.login")
@@ -44,7 +44,7 @@ func TestCreateAndValidateAIGPEvent(t *testing.T) {
 	}
 
 	event, err := CreateAIGPEvent(CreateEventOptions{
-		EventType:      "governance.policy.delivered",
+		EventType:      "INJECT_SUCCESS",
 		EventCategory:  "Inject",
 		AgentID:        "agent.test",
 		GovernanceHash: governanceHash,
@@ -64,8 +64,8 @@ func TestCreateAndValidateAIGPEvent(t *testing.T) {
 	if event.SequenceNumber < 1 {
 		t.Fatalf("expected auto sequence_number >= 1, got %d", event.SequenceNumber)
 	}
-	if event.SpecVersion != "0.10.0" {
-		t.Fatalf("expected default spec_version 0.10.0, got %q", event.SpecVersion)
+	if event.SpecVersion != "0.12" {
+		t.Fatalf("expected default spec_version 0.12, got %q", event.SpecVersion)
 	}
 
 	errs := ValidateAIGPEvent(event)
@@ -155,7 +155,7 @@ func TestComputeMerkleGovernanceHash(t *testing.T) {
 	if root == "" {
 		t.Fatal("expected non-empty merkle root")
 	}
-	if tree == nil || tree.LeafCount != 2 {
+	if tree == nil || tree.ResourceCount != 2 {
 		t.Fatalf("expected tree with 2 leaves, got %+v", tree)
 	}
 }
@@ -169,7 +169,7 @@ func TestComputeMerkleGovernanceHashWithProofs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected merkle error: %v", err)
 	}
-	if tree == nil || len(tree.InclusionProofs) != tree.LeafCount {
+	if tree == nil || len(tree.InclusionProofs) != tree.ResourceCount {
 		t.Fatalf("expected inclusion proofs for all leaves, got %+v", tree)
 	}
 
@@ -373,8 +373,8 @@ func TestCloudEventHelpers(t *testing.T) {
 
 func TestCreateRejectsEmptyGovernanceHash(t *testing.T) {
 	_, err := CreateAIGPEvent(CreateEventOptions{
-		EventType:      "AGENT_REGISTERED",
-		EventCategory:  "agent-lifecycle",
+		EventType:      "INJECT_SUCCESS",
+		EventCategory:  "inject",
 		AgentID:        "agent.test",
 		TraceID:        "trace-550e8400-e29b-41d4-a716-446655440000",
 		GovernanceHash: "",

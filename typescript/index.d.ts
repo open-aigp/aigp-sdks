@@ -28,8 +28,8 @@ export interface MerkleInclusionProof {
 
 export interface GovernanceMerkleTree {
   algorithm: "sha256";
-  leaf_count: number;
-  leaves: MerkleLeaf[];
+  resource_count: number;
+  resources: MerkleLeaf[];
   inclusion_proofs?: MerkleInclusionProof[];
 }
 

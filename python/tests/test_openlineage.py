@@ -31,7 +31,7 @@ from aigp.events import (
 # ===================================================================
 
 def _make_policy_delivered(**overrides):
-    """Create a minimal governance.policy.delivered AIGP event."""
+    """Create a minimal INJECT_SUCCESS AIGP event."""
     defaults = dict(
         event_type="INJECT_SUCCESS",
         event_category="governance",
@@ -44,7 +44,7 @@ def _make_policy_delivered(**overrides):
 
 
 def _make_merkle_event():
-    """Create a governance.proof.delivered event with Merkle tree including context and lineage resources."""
+    """Create a GOVERNANCE_PROOF event with Merkle tree including context and lineage resources."""
     resources = [
         ("policy", "policy.trading-limits", "Max position: $10M"),
         ("prompt", "prompt.scoring-v3", "You are a helpful assistant"),
@@ -81,17 +81,17 @@ class TestGovernanceRunFacet:
         assert facet["hashType"] == "sha256"
         assert facet["agentId"] == "agent.test-bot"
         assert facet["traceId"] == "4bf92f3577b34da6a3ce929d0e0e4736"
-        assert facet["specVersion"] == "0.10.0"
+        assert facet["specVersion"] == "0.12"
 
     def test_leaf_count_single_resource(self):
         event = _make_policy_delivered()
         facet = build_governance_run_facet(event)
-        assert facet["leafCount"] == 1
+        assert facet["resourceCount"] == 1
 
     def test_leaf_count_merkle_tree(self):
         event = _make_merkle_event()
         facet = build_governance_run_facet(event)
-        assert facet["leafCount"] == 4
+        assert facet["resourceCount"] == 4
         assert facet["hashType"] == "merkle-sha256"
 
     def test_enforcement_allowed(self):
@@ -148,7 +148,7 @@ class TestGovernanceRunFacet:
         json_str = json.dumps(facet)
         parsed = json.loads(json_str)
         assert parsed["governanceHash"] == "a" * 64
-        assert parsed["specVersion"] == "0.10.0"
+        assert parsed["specVersion"] == "0.12"
 
 
 # ===================================================================
@@ -333,7 +333,7 @@ class TestOpenLineageRunEvent:
         # Governance facet shows Merkle
         governance = ol["run"]["facets"]["aigp_governance"]
         assert governance["hashType"] == "merkle-sha256"
-        assert governance["leafCount"] == 4
+        assert governance["resourceCount"] == 4
 
     def test_json_serializable(self):
         event = _make_policy_delivered(

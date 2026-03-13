@@ -60,12 +60,12 @@ from typing import Any
 PRODUCER = "https://github.com/open-aigp/aigp"
 
 RUN_FACET_SCHEMA_URL = (
-    "https://github.com/open-aigp/aigp/blob/v0.10.0/"
+    "https://github.com/open-aigp/aigp/blob/v0.12/"
     "integrations/openlineage/facets/AIGPGovernanceRunFacet.json"
 )
 
 RESOURCE_FACET_SCHEMA_URL = (
-    "https://github.com/open-aigp/aigp/blob/v0.10.0/"
+    "https://github.com/open-aigp/aigp/blob/v0.12/"
     "integrations/openlineage/facets/AIGPResourceInputFacet.json"
 )
 
@@ -94,17 +94,17 @@ def build_governance_run_facet(aigp_event: dict[str, Any]) -> dict[str, Any]:
         Dict conforming to AIGPGovernanceRunFacet schema.
     """
     merkle_tree = aigp_event.get("governance_merkle_tree")
-    leaf_count = merkle_tree["leaf_count"] if merkle_tree else 1
+    resource_count = merkle_tree["resource_count"] if merkle_tree else 1
 
     facet: dict[str, Any] = {
         "_producer": PRODUCER,
         "_schemaURL": RUN_FACET_SCHEMA_URL,
         "governanceHash": aigp_event.get("governance_hash", ""),
         "hashType": aigp_event.get("hash_type", "sha256"),
-        "leafCount": leaf_count,
+        "resourceCount": resource_count,
         "agentId": aigp_event.get("agent_id", ""),
         "traceId": aigp_event.get("trace_id", ""),
-        "specVersion": aigp_event.get("spec_version", "0.10.0"),
+        "specVersion": aigp_event.get("spec_version", "0.12"),
     }
 
     # Infer enforcement result from event type (case-insensitive)
@@ -128,7 +128,7 @@ def build_resource_input_facets(
     """
     Build AIGPResourceInputFacet dicts from an AIGP event's governed resources.
 
-    If the event has a ``governance_merkle_tree``, produces one facet per leaf.
+    If the event has a ``governance_merkle_tree``, produces one facet per resource.
     Otherwise, produces a single facet from the event's primary resource
     (``policy_name`` or ``prompt_name``).
 
@@ -143,7 +143,10 @@ def build_resource_input_facets(
 
     if merkle_tree:
         facets: list[dict[str, Any]] = []
-        for leaf in merkle_tree.get("leaves", []):
+        resources = merkle_tree.get("resources")
+        if not isinstance(resources, list):
+            resources = []
+        for leaf in resources:
             facets.append({
                 "_producer": PRODUCER,
                 "_schemaURL": RESOURCE_FACET_SCHEMA_URL,

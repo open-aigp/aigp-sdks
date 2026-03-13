@@ -12,7 +12,7 @@ produces three complementary records:
         |    Full Merkle tree, all leaf hashes, cryptographic proof
         |
         +--> OTel Span Event --> Observability Backend
-        |    governance_hash, leaf_count, trace context, latency
+        |    governance_hash, resource_count, trace context, latency
         |
         +--> OpenLineage RunEvent --> Lineage Backend
              Governance summary + resources as InputDatasets
@@ -197,7 +197,7 @@ def main():
     provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
     trace.set_tracer_provider(provider)
 
-    tracer = trace.get_tracer("aigp.example", "0.10.0")
+    tracer = trace.get_tracer("aigp.example", "0.12")
 
     # =====================================================================
     # Scenario 2: Single Policy Injection
@@ -475,8 +475,8 @@ def main():
         print(f"  governance_hash: {event['governance_hash'][:16]}... (Merkle root)")
         if "governance_merkle_tree" in event:
             tree = event["governance_merkle_tree"]
-            print(f"  leaf_count:      {tree['leaf_count']}")
-            for leaf in tree["leaves"]:
+            print(f"  resource_count:      {tree['resource_count']}")
+            for leaf in tree["resources"]:
                 print(f"    {leaf['resource_type']:8s} {leaf['resource_name']:40s} {leaf['hash'][:16]}...")
 
     # =====================================================================
@@ -492,7 +492,7 @@ def main():
     #      Full Merkle tree, all leaf hashes, complete cryptographic proof
     #
     #   2. OTel span → Observability Backend
-    #      governance_hash, leaf_count, agent identity, latency, errors
+    #      governance_hash, resource_count, agent identity, latency, errors
     #
     #   3. OpenLineage RunEvent → Lineage Backend
     #      Governance summary as run facet + resources as InputDatasets
@@ -612,7 +612,7 @@ def main():
     # compatible RunEvent with two custom facets:
     #
     #   run.facets.aigp_governance (AIGPGovernanceRunFacet):
-    #     - governanceHash, hashType, leafCount, agentId, traceId
+    #     - governanceHash, hashType, resourceCount, agentId, traceId
     #     - Summary: "this run was governed, here's the proof"
     #
     #   inputs[].inputFacets.aigp_resource (AIGPResourceInputFacet):
@@ -639,7 +639,7 @@ def main():
     print(f"    job:       {ol_event['job']['namespace']}/{ol_event['job']['name']}")
     governance = ol_event["run"]["facets"]["aigp_governance"]
     print(f"    governance hash: {governance['governanceHash'][:16]}... (Merkle root)")
-    print(f"    leaf count:      {governance['leafCount']}")
+    print(f"    leaf count:      {governance['resourceCount']}")
     print(f"    enforcement:     {governance.get('enforcementResult', 'N/A')}")
     print(f"    inputs ({len(ol_event['inputs'])}):")
     for inp in ol_event["inputs"]:
@@ -971,8 +971,8 @@ def main():
 
     root, tree = compute_merkle_governance_hash(resources)
     print(f"\n  Merkle root:  {root[:16]}...")
-    print(f"  Leaf count:   {tree['leaf_count']}")
-    for leaf in tree["leaves"]:
+    print(f"  Leaf count:   {tree['resource_count']}")
+    for leaf in tree["resources"]:
         mode = leaf.get("hash_mode", "content")
         ref = leaf.get("content_ref", "")
         print(f"    {leaf['resource_type']:8s} {leaf['resource_name']:40s} mode={mode}" +

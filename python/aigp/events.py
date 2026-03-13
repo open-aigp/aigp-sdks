@@ -25,26 +25,10 @@ from typing import Any, Optional, Union
 _RESOURCE_TYPE_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 _EVENT_TYPE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
-# Backward-compatible aliases from old dotted event types to AIGP standard types.
-_EVENT_TYPE_ALIASES = {
-    "governance.policy.delivered": "INJECT_SUCCESS",
-    "governance.policy.denied": "INJECT_DENIED",
-    "governance.prompt.delivered": "PROMPT_USED",
-    "governance.prompt.denied": "PROMPT_DENIED",
-    "governance.policy.violation": "POLICY_VIOLATION",
-    "governance.a2a.call": "A2A_CALL",
-    "governance.tool.invoked": "TOOL_INVOKED",
-    "governance.tool.denied": "TOOL_DENIED",
-    "governance.boundary.unverified": "UNVERIFIED_BOUNDARY",
-    "governance.inference.started": "INFERENCE_STARTED",
-    "governance.inference.completed": "INFERENCE_COMPLETED",
-    "governance.inference.blocked": "INFERENCE_BLOCKED",
-    "governance.model.loaded": "MODEL_LOADED",
-    "governance.model.switched": "MODEL_SWITCHED",
-    "governance.memory.read": "MEMORY_READ",
-    "governance.memory.written": "MEMORY_WRITTEN",
-    "governance.proof": "GOVERNANCE_PROOF",
-    "governance.proof.delivered": "GOVERNANCE_PROOF",
+_EMPTY_GOVERNANCE_HASH_EVENT_TYPES = {
+    "AGENT_REGISTERED",
+    "AGENT_APPROVED",
+    "AGENT_DEACTIVATED",
 }
 _SEQUENCE_COUNTERS: dict[str, int] = {}
 _SEQUENCE_LOCK = threading.Lock()
@@ -58,23 +42,25 @@ def _next_sequence_number(agent_id: str, trace_id: str) -> int:
         return next_value
 
 
+def _allows_empty_governance_hash(event_type: str) -> bool:
+    return event_type in _EMPTY_GOVERNANCE_HASH_EVENT_TYPES
+
+
 def normalize_event_type(event_type: str) -> str:
     """
     Normalize event_type to an AIGP-conformant UPPER_SNAKE_CASE value.
 
-    - Recognized legacy dotted aliases are mapped to standard AIGP event types.
-    - Other values are normalized by replacing non-alphanumerics with '_' and
-      uppercasing (e.g., ``myplatform.custom.action`` -> ``MYPLATFORM_CUSTOM_ACTION``).
+    Values are normalized by replacing non-alphanumerics with '_' and
+    uppercasing (e.g., ``myplatform.custom.action`` -> ``MYPLATFORM_CUSTOM_ACTION``).
     """
     raw = (event_type or "").strip()
     if not raw:
         raise ValueError("event_type must be a non-empty string")
 
-    mapped = _EVENT_TYPE_ALIASES.get(raw, raw)
-    if _EVENT_TYPE_PATTERN.match(mapped):
-        return mapped
+    if _EVENT_TYPE_PATTERN.match(raw):
+        return raw
 
-    normalized = re.sub(r"[^A-Za-z0-9]+", "_", mapped).strip("_").upper()
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_").upper()
     if not normalized or not _EVENT_TYPE_PATTERN.match(normalized):
         raise ValueError(
             f"event_type {event_type!r} cannot be normalized to a valid "
@@ -207,11 +193,20 @@ def _compute_merkle_root(sorted_hashes: list[str]) -> str:
     return level[0]
 
 
+def _get_merkle_resources(merkle_tree: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return canonical Merkle resources from governance_merkle_tree."""
+    tree = merkle_tree or {}
+    resources = tree.get("resources")
+    if isinstance(resources, list):
+        return resources
+    return []
+
+
 def build_inclusion_proofs(merkle_tree: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Build Merkle inclusion proofs for each leaf in a Merkle tree.
 
-    The returned proof list is ordered to match `merkle_tree["leaves"]`.
+    The returned proof list is ordered to match `merkle_tree["resources"]`.
     Each proof object contains:
       - leaf_hash
       - proof: ordered list of sibling path steps where each step has:
@@ -220,16 +215,16 @@ def build_inclusion_proofs(merkle_tree: dict[str, Any]) -> list[dict[str, Any]]:
 
     Args:
         merkle_tree: Tree dict from compute_merkle_governance_hash() for
-            multi-resource input (contains "leaves" sorted by hash).
+            multi-resource input (contains "resources" sorted by hash).
 
     Returns:
         List of proof objects, one per leaf.
     """
-    leaves = (merkle_tree or {}).get("leaves", [])
-    if not leaves:
+    resources = _get_merkle_resources(merkle_tree)
+    if not resources:
         return []
 
-    hashes = [leaf["hash"] for leaf in leaves]
+    hashes = [resource["hash"] for resource in resources]
     proofs: list[list[dict[str, str]]] = [[] for _ in hashes]
 
     # Track which original leaves are represented by each node as we
@@ -279,10 +274,10 @@ def build_inclusion_proofs(merkle_tree: dict[str, Any]) -> list[dict[str, Any]]:
         nodes = next_level
 
     inclusion_proofs: list[dict[str, Any]] = []
-    for idx, leaf in enumerate(leaves):
+    for idx, resource in enumerate(resources):
         inclusion_proofs.append(
             {
-                "leaf_hash": leaf["hash"],
+                "leaf_hash": resource["hash"],
                 "proof_path": proofs[idx],
             }
         )
@@ -428,8 +423,8 @@ def compute_merkle_governance_hash(
 
     merkle_tree = {
         "algorithm": "sha256",
-        "leaf_count": len(leaves),
-        "leaves": leaves,
+        "resource_count": len(leaves),
+        "resources": leaves,
     }
     if include_inclusion_proofs:
         merkle_tree["inclusion_proofs"] = build_inclusion_proofs(merkle_tree)
@@ -639,12 +634,12 @@ def create_aigp_event(
     sequence_number: int = 0,
     causality_ref: str = "",
     # Version
-    spec_version: str = "0.10.0",
+    spec_version: str = "0.12",
     # Merkle tree (Section 8.8)
     governance_merkle_tree: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
-    Create an AIGP event conforming to the v0.10.0 schema.
+    Create an AIGP event conforming to the v0.12 schema.
 
     This function creates the standalone AIGP JSON event (the governance
     record). For the OTel span event (the observability record), use
@@ -671,11 +666,11 @@ def create_aigp_event(
         signature_key_id: AGRN-style key identifier for the signing key.
         sequence_number: Monotonic counter per (agent_id, trace_id). Values <= 0 auto-increment.
         causality_ref: event_id of the preceding event in the causal chain.
-        spec_version: AIGP spec version. Default "0.10.0".
+        spec_version: AIGP spec version. Default "0.12".
         governance_merkle_tree: Merkle tree dict (Section 8.8). Optional.
 
     Returns:
-        Dict conforming to AIGP event schema v0.10.0.
+        Dict conforming to AIGP event schema v0.12.
     """
     now = datetime.now(timezone.utc)
 
@@ -683,7 +678,7 @@ def create_aigp_event(
     normalized_event_category = normalize_event_category(event_category)
     normalized_trace_id = (trace_id or "").strip() or uuid.uuid4().hex
     normalized_governance_hash = (governance_hash or "").strip()
-    if not normalized_governance_hash:
+    if not normalized_governance_hash and not _allows_empty_governance_hash(normalized_event_type):
         raise ValueError("governance_hash is required and cannot be empty")
     resolved_sequence_number = (
         int(sequence_number)

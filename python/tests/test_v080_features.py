@@ -312,11 +312,11 @@ class TestPointerPattern:
 
         assert len(root_hash) == 64  # SHA-256 hex
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 2
+        assert merkle_tree["resource_count"] == 2
         assert merkle_tree["algorithm"] == "sha256"
 
     def test_merkle_pointer_leaf_has_hash_mode(self):
-        """Merkle tree leaves include hash_mode when the resource uses pointer mode."""
+        """Merkle tree resources include hash_mode when the resource uses pointer mode."""
         resources = [
             ("policy", "policy.inline", "content A"),
             {
@@ -330,14 +330,14 @@ class TestPointerPattern:
         _, merkle_tree = compute_merkle_governance_hash(resources)
 
         pointer_leaves = [
-            leaf for leaf in merkle_tree["leaves"]
+            leaf for leaf in merkle_tree["resources"]
             if leaf["resource_name"] == "prompt.external"
         ]
         assert len(pointer_leaves) == 1
         assert pointer_leaves[0]["hash_mode"] == "pointer"
 
     def test_merkle_pointer_leaf_has_content_ref(self):
-        """Merkle tree leaves include content_ref when the resource uses pointer mode."""
+        """Merkle tree resources include content_ref when the resource uses pointer mode."""
         uri = "s3://bucket/prompt-sha256:deadbeef"
         resources = [
             ("policy", "policy.inline", "content A"),
@@ -352,7 +352,7 @@ class TestPointerPattern:
         _, merkle_tree = compute_merkle_governance_hash(resources)
 
         pointer_leaves = [
-            leaf for leaf in merkle_tree["leaves"]
+            leaf for leaf in merkle_tree["resources"]
             if leaf["resource_name"] == "prompt.external"
         ]
         assert len(pointer_leaves) == 1
@@ -378,5 +378,5 @@ class TestPointerPattern:
 
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 2
-        assert len(merkle_tree["leaves"]) == 2
+        assert merkle_tree["resource_count"] == 2
+        assert len(merkle_tree["resources"]) == 2

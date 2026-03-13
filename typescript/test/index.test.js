@@ -20,9 +20,9 @@ function loadConformanceFixtures() {
   });
 }
 
-test("normalizeEventType maps legacy aliases", () => {
-  assert.equal(sdk.normalizeEventType("governance.policy.delivered"), "INJECT_SUCCESS");
-  assert.equal(sdk.normalizeEventType("governance.prompt.denied"), "PROMPT_DENIED");
+test("normalizeEventType normalizes dotted names", () => {
+  assert.equal(sdk.normalizeEventType("governance.policy.delivered"), "GOVERNANCE_POLICY_DELIVERED");
+  assert.equal(sdk.normalizeEventType("governance.prompt.denied"), "GOVERNANCE_PROMPT_DENIED");
 });
 
 test("normalizeEventType normalizes custom names", () => {
@@ -31,7 +31,7 @@ test("normalizeEventType normalizes custom names", () => {
 
 test("createAIGPEvent returns spec-conformant core fields", () => {
   const event = sdk.createAIGPEvent({
-    event_type: "governance.policy.delivered",
+    event_type: "INJECT_SUCCESS",
     event_category: "Inject",
     agent_id: "agent.test",
     governance_hash: sdk.computeGovernanceHash("policy"),
@@ -41,7 +41,7 @@ test("createAIGPEvent returns spec-conformant core fields", () => {
   assert.equal(event.event_category, "inject");
   assert.match(event.trace_id, /^[a-f0-9]{32}$/);
   assert.ok(event.sequence_number >= 1);
-  assert.equal(event.spec_version, "0.10.0");
+  assert.equal(event.spec_version, "0.12");
   assert.equal(sdk.validateAIGPEvent(event).length, 0);
 });
 
@@ -85,7 +85,7 @@ test("emitAIGPEvent requires content when governance_hash is not provided", () =
 
 test("createAIGPEvent accepts camelCase option keys", () => {
   const event = sdk.createAIGPEvent({
-    eventType: "governance.policy.denied",
+    eventType: "INJECT_DENIED",
     eventCategory: "Inject",
     agentId: "agent.test",
     governanceHash: sdk.computeGovernanceHash("policy"),
@@ -109,7 +109,9 @@ test("computeMerkleGovernanceHash handles single and multi resource", () => {
   ]);
   assert.ok(root);
   assert.ok(tree);
-  assert.equal(tree.leaf_count, 2);
+  assert.equal(tree.resource_count, 2);
+  assert.equal(Array.isArray(tree.resources), true);
+  assert.equal(tree.resources.length, 2);
 });
 
 test("computeMerkleGovernanceHash can include inclusion_proofs", () => {
@@ -122,8 +124,10 @@ test("computeMerkleGovernanceHash can include inclusion_proofs", () => {
     { include_inclusion_proofs: true }
   );
   assert.ok(tree);
+  assert.equal(Array.isArray(tree.resources), true);
+  assert.equal(tree.resources.length, tree.resource_count);
   assert.equal(Array.isArray(tree.inclusion_proofs), true);
-  assert.equal(tree.inclusion_proofs.length, tree.leaf_count);
+  assert.equal(tree.inclusion_proofs.length, tree.resource_count);
   for (const proofEntry of tree.inclusion_proofs) {
     assert.equal(
       sdk.verifyInclusionProof(root, proofEntry.leaf_hash, proofEntry.proof_path),
@@ -232,8 +236,8 @@ test("createAIGPEvent rejects empty governance_hash", () => {
   assert.throws(
     () =>
       sdk.createAIGPEvent({
-        event_type: "AGENT_REGISTERED",
-        event_category: "agent-lifecycle",
+        event_type: "INJECT_SUCCESS",
+        event_category: "inject",
         agent_id: "agent.test",
         governance_hash: "",
         trace_id: "trace-550e8400-e29b-41d4-a716-446655440000",

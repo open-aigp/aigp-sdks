@@ -19,9 +19,9 @@ import org.junit.jupiter.api.Test;
 class AIGPTest {
 
     @Test
-    void normalizeEventTypeMapsAliases() {
-        assertEquals("INJECT_SUCCESS", AIGP.normalizeEventType("governance.policy.delivered"));
-        assertEquals("PROMPT_DENIED", AIGP.normalizeEventType("governance.prompt.denied"));
+    void normalizeEventTypeNormalizesDottedNames() {
+        assertEquals("GOVERNANCE_POLICY_DELIVERED", AIGP.normalizeEventType("governance.policy.delivered"));
+        assertEquals("GOVERNANCE_PROMPT_DENIED", AIGP.normalizeEventType("governance.prompt.denied"));
     }
 
     @Test
@@ -32,7 +32,7 @@ class AIGPTest {
     @Test
     void createAndValidateEvent() {
         AIGP.CreateEventOptions options = new AIGP.CreateEventOptions();
-        options.eventType = "governance.policy.delivered";
+        options.eventType = "INJECT_SUCCESS";
         options.eventCategory = "Inject";
         options.agentId = "agent.test";
         options.governanceHash = AIGP.computeGovernanceHash("policy", "sha256");
@@ -41,7 +41,7 @@ class AIGPTest {
         assertEquals("INJECT_SUCCESS", event.eventType);
         assertEquals("inject", event.eventCategory);
         assertTrue(event.traceId.matches("^[a-f0-9]{32}$"));
-        assertEquals("0.10.0", event.specVersion);
+        assertEquals("0.12", event.specVersion);
         assertEquals(0, AIGP.validateAIGPEvent(event).size());
     }
 
@@ -56,7 +56,7 @@ class AIGPTest {
         AIGP.Resource prompt = new AIGP.Resource("prompt", "prompt.system", "You are a trading assistant");
         AIGP.MerkleResult multi = AIGP.computeMerkleGovernanceHash(Arrays.asList(policy, prompt));
         assertNotNull(multi.merkleTree);
-        assertEquals(2, multi.merkleTree.leafCount);
+        assertEquals(2, multi.merkleTree.resourceCount);
         assertNotNull(multi.rootHash);
     }
 
@@ -164,8 +164,8 @@ class AIGPTest {
     @Test
     void createRejectsEmptyGovernanceHash() {
         AIGP.CreateEventOptions options = new AIGP.CreateEventOptions();
-        options.eventType = "AGENT_REGISTERED";
-        options.eventCategory = "agent-lifecycle";
+        options.eventType = "INJECT_SUCCESS";
+        options.eventCategory = "inject";
         options.agentId = "agent.test";
         options.governanceHash = "";
         options.traceId = "trace-550e8400-e29b-41d4-a716-446655440000";

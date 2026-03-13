@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,37 +39,14 @@ public final class AIGP {
     private static final Pattern TRACE_ID_OTEL_PATTERN = Pattern.compile("^[a-f0-9]{32}$");
     private static final Pattern TRACE_ID_UUID_V4_PATTERN = Pattern.compile("(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
     private static final Pattern TRACE_ID_PREFIXED_UUID_V4_PATTERN = Pattern.compile("(?i)^(trace|req)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$");
+    private static final Set<String> EMPTY_GOVERNANCE_HASH_EVENT_TYPES = new HashSet<String>(
+        Arrays.asList("AGENT_REGISTERED", "AGENT_APPROVED", "AGENT_DEACTIVATED"));
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final DateTimeFormatter RFC3339_MILLIS_UTC = DateTimeFormatter
         .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         .withZone(ZoneOffset.UTC);
     private static final Map<String, Long> SEQUENCE_COUNTERS = new HashMap<String, Long>();
-
-    private static final Map<String, String> EVENT_TYPE_ALIASES;
-
-    static {
-        Map<String, String> aliases = new HashMap<String, String>();
-        aliases.put("governance.policy.delivered", "INJECT_SUCCESS");
-        aliases.put("governance.policy.denied", "INJECT_DENIED");
-        aliases.put("governance.prompt.delivered", "PROMPT_USED");
-        aliases.put("governance.prompt.denied", "PROMPT_DENIED");
-        aliases.put("governance.policy.violation", "POLICY_VIOLATION");
-        aliases.put("governance.a2a.call", "A2A_CALL");
-        aliases.put("governance.tool.invoked", "TOOL_INVOKED");
-        aliases.put("governance.tool.denied", "TOOL_DENIED");
-        aliases.put("governance.boundary.unverified", "UNVERIFIED_BOUNDARY");
-        aliases.put("governance.inference.started", "INFERENCE_STARTED");
-        aliases.put("governance.inference.completed", "INFERENCE_COMPLETED");
-        aliases.put("governance.inference.blocked", "INFERENCE_BLOCKED");
-        aliases.put("governance.model.loaded", "MODEL_LOADED");
-        aliases.put("governance.model.switched", "MODEL_SWITCHED");
-        aliases.put("governance.memory.read", "MEMORY_READ");
-        aliases.put("governance.memory.written", "MEMORY_WRITTEN");
-        aliases.put("governance.proof", "GOVERNANCE_PROOF");
-        aliases.put("governance.proof.delivered", "GOVERNANCE_PROOF");
-        EVENT_TYPE_ALIASES = Collections.unmodifiableMap(aliases);
-    }
 
     public interface EventSigner {
         String algorithm();
@@ -260,30 +238,30 @@ public final class AIGP {
 
     public static final class GovernanceMerkleTree {
         public final String algorithm;
-        public final int leafCount;
-        public final List<MerkleLeaf> leaves;
+        public final int resourceCount;
+        public final List<MerkleLeaf> resources;
         public final List<MerkleInclusionProof> inclusionProofs;
 
-        public GovernanceMerkleTree(String algorithm, int leafCount, List<MerkleLeaf> leaves) {
-            this(algorithm, leafCount, leaves, null);
+        public GovernanceMerkleTree(String algorithm, int resourceCount, List<MerkleLeaf> resources) {
+            this(algorithm, resourceCount, resources, null);
         }
 
-        public GovernanceMerkleTree(String algorithm, int leafCount, List<MerkleLeaf> leaves, List<MerkleInclusionProof> inclusionProofs) {
+        public GovernanceMerkleTree(String algorithm, int resourceCount, List<MerkleLeaf> resources, List<MerkleInclusionProof> inclusionProofs) {
             this.algorithm = algorithm;
-            this.leafCount = leafCount;
-            this.leaves = leaves;
+            this.resourceCount = resourceCount;
+            this.resources = resources;
             this.inclusionProofs = inclusionProofs;
         }
 
         public Map<String, Object> toMap() {
             Map<String, Object> out = new LinkedHashMap<String, Object>();
             out.put("algorithm", algorithm);
-            out.put("leaf_count", leafCount);
+            out.put("resource_count", resourceCount);
             List<Map<String, Object>> mapped = new ArrayList<Map<String, Object>>();
-            for (MerkleLeaf leaf : leaves) {
+            for (MerkleLeaf leaf : resources) {
                 mapped.add(leaf.toMap());
             }
-            out.put("leaves", mapped);
+            out.put("resources", mapped);
             if (inclusionProofs != null && !inclusionProofs.isEmpty()) {
                 List<Map<String, Object>> mappedProofs = new ArrayList<Map<String, Object>>();
                 for (MerkleInclusionProof proof : inclusionProofs) {
@@ -511,12 +489,11 @@ public final class AIGP {
             throw new IllegalArgumentException("event_type must be a non-empty string");
         }
 
-        String mapped = EVENT_TYPE_ALIASES.containsKey(raw) ? EVENT_TYPE_ALIASES.get(raw) : raw;
-        if (EVENT_TYPE_PATTERN.matcher(mapped).matches()) {
-            return mapped;
+        if (EVENT_TYPE_PATTERN.matcher(raw).matches()) {
+            return raw;
         }
 
-        String normalized = mapped.replaceAll("[^A-Za-z0-9]+", "_").replaceAll("^_+|_+$", "").toUpperCase(Locale.ROOT);
+        String normalized = raw.replaceAll("[^A-Za-z0-9]+", "_").replaceAll("^_+|_+$", "").toUpperCase(Locale.ROOT);
         if (isBlank(normalized) || !EVENT_TYPE_PATTERN.matcher(normalized).matches()) {
             throw new IllegalArgumentException("event_type cannot be normalized to valid UPPER_SNAKE_CASE: " + eventType);
         }
@@ -759,7 +736,7 @@ public final class AIGP {
             throw new IllegalArgumentException("options are required");
         }
         String governanceHash = nullToEmpty(options.governanceHash).trim();
-        if (governanceHash.isEmpty()) {
+        if (governanceHash.isEmpty() && !allowsEmptyGovernanceHash(options.eventType)) {
             throw new IllegalArgumentException("governance_hash is required and cannot be empty");
         }
 
@@ -801,7 +778,7 @@ public final class AIGP {
             ? options.sequenceNumber
             : nextSequenceNumber(event.agentId, event.traceId);
         event.causalityRef = nullToEmpty(options.causalityRef);
-        event.specVersion = isBlank(options.specVersion) ? "0.10.0" : options.specVersion;
+        event.specVersion = isBlank(options.specVersion) ? "0.12" : options.specVersion;
         event.governanceMerkleTree = options.governanceMerkleTree;
 
         return event;
@@ -840,7 +817,7 @@ public final class AIGP {
                 errors.add("trace_id must be 32-char lowercase hex, UUID v4, or trace-/req- prefixed UUID v4");
             }
         }
-        if (isBlank(event.governanceHash)) {
+        if (isBlank(event.governanceHash) && !allowsEmptyGovernanceHash(event.eventType)) {
             errors.add("governance_hash must be a non-empty string");
         }
         if (event.sequenceNumber < 1) {
@@ -855,6 +832,10 @@ public final class AIGP {
         long next = SEQUENCE_COUNTERS.containsKey(key) ? SEQUENCE_COUNTERS.get(key) + 1L : 1L;
         SEQUENCE_COUNTERS.put(key, next);
         return next;
+    }
+
+    private static boolean allowsEmptyGovernanceHash(String eventType) {
+        return EMPTY_GOVERNANCE_HASH_EVENT_TYPES.contains(nullToEmpty(eventType).trim());
     }
 
     public static String ceTypeFromEventType(String eventType) {

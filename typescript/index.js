@@ -14,28 +14,8 @@ const EVENT_TYPE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const TRACE_ID_OTEL_PATTERN = /^[a-f0-9]{32}$/;
 const TRACE_ID_UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TRACE_ID_PREFIXED_UUID_V4_PATTERN = /^(trace|req)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EMPTY_GOVERNANCE_HASH_EVENT_TYPES = new Set(["AGENT_REGISTERED", "AGENT_APPROVED", "AGENT_DEACTIVATED"]);
 const sequenceCounters = new Map();
-
-const EVENT_TYPE_ALIASES = {
-  "governance.policy.delivered": "INJECT_SUCCESS",
-  "governance.policy.denied": "INJECT_DENIED",
-  "governance.prompt.delivered": "PROMPT_USED",
-  "governance.prompt.denied": "PROMPT_DENIED",
-  "governance.policy.violation": "POLICY_VIOLATION",
-  "governance.a2a.call": "A2A_CALL",
-  "governance.tool.invoked": "TOOL_INVOKED",
-  "governance.tool.denied": "TOOL_DENIED",
-  "governance.boundary.unverified": "UNVERIFIED_BOUNDARY",
-  "governance.inference.started": "INFERENCE_STARTED",
-  "governance.inference.completed": "INFERENCE_COMPLETED",
-  "governance.inference.blocked": "INFERENCE_BLOCKED",
-  "governance.model.loaded": "MODEL_LOADED",
-  "governance.model.switched": "MODEL_SWITCHED",
-  "governance.memory.read": "MEMORY_READ",
-  "governance.memory.written": "MEMORY_WRITTEN",
-  "governance.proof": "GOVERNANCE_PROOF",
-  "governance.proof.delivered": "GOVERNANCE_PROOF",
-};
 
 function randomHex(bytes) {
   return crypto.randomBytes(bytes).toString("hex");
@@ -58,12 +38,11 @@ function normalizeEventType(eventType) {
     throw new Error("event_type must be a non-empty string");
   }
 
-  const mapped = EVENT_TYPE_ALIASES[raw] || raw;
-  if (EVENT_TYPE_PATTERN.test(mapped)) {
-    return mapped;
+  if (EVENT_TYPE_PATTERN.test(raw)) {
+    return raw;
   }
 
-  const normalized = mapped.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+  const normalized = raw.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
   if (!normalized || !EVENT_TYPE_PATTERN.test(normalized)) {
     throw new Error(`event_type ${JSON.stringify(eventType)} cannot be normalized to a valid UPPER_SNAKE_CASE value`);
   }
@@ -84,6 +63,10 @@ function nextSequenceNumber(agentId, traceId) {
   const next = (sequenceCounters.get(key) || 0) + 1;
   sequenceCounters.set(key, next);
   return next;
+}
+
+function allowsEmptyGovernanceHash(eventType) {
+  return EMPTY_GOVERNANCE_HASH_EVENT_TYPES.has(String(eventType || "").trim());
 }
 
 function hasOwn(obj, key) {
@@ -142,13 +125,13 @@ function computeMerkleRoot(sortedHashes) {
 }
 
 function buildInclusionProofs(merkleTree) {
-  const leaves = (merkleTree && merkleTree.leaves) || [];
-  if (!Array.isArray(leaves) || leaves.length === 0) {
+  const resources = (merkleTree && merkleTree.resources) || [];
+  if (!Array.isArray(resources) || resources.length === 0) {
     return [];
   }
 
-  const proofs = leaves.map(() => []);
-  let nodes = leaves.map((leaf, index) => ({
+  const proofs = resources.map(() => []);
+  let nodes = resources.map((leaf, index) => ({
     hash: leaf.hash,
     leafIndexes: [index],
   }));
@@ -184,7 +167,7 @@ function buildInclusionProofs(merkleTree) {
     nodes = next;
   }
 
-  return leaves.map((leaf, index) => ({
+  return resources.map((leaf, index) => ({
     leaf_hash: leaf.hash,
     proof_path: proofs[index],
   }));
@@ -282,8 +265,8 @@ function computeMerkleGovernanceHash(resources, options = {}) {
 
   const tree = {
     algorithm: "sha256",
-    leaf_count: leaves.length,
-    leaves,
+    resource_count: leaves.length,
+    resources: leaves,
   };
   if (options.include_inclusion_proofs || options.includeInclusionProofs) {
     tree.inclusion_proofs = buildInclusionProofs(tree);
@@ -471,7 +454,7 @@ function createAIGPEvent(options) {
       : nextSequenceNumber(agentId, traceId);
 
   const governanceHash = String(options.governance_hash || options.governanceHash || "").trim();
-  if (!governanceHash) {
+  if (!governanceHash && !allowsEmptyGovernanceHash(eventType)) {
     throw new Error("governance_hash is required and cannot be empty");
   }
 
@@ -511,7 +494,7 @@ function createAIGPEvent(options) {
     signature_key_id: String(options.signature_key_id || options.signatureKeyId || ""),
     sequence_number: sequenceNumber,
     causality_ref: String(options.causality_ref || options.causalityRef || ""),
-    spec_version: String(options.spec_version || options.specVersion || "0.10.0"),
+    spec_version: String(options.spec_version || options.specVersion || "0.12"),
   };
 
   const merkleTree = options.governance_merkle_tree || options.governanceMerkleTree;
@@ -560,7 +543,7 @@ function validateAIGPEvent(event) {
   }
   if (!Object.prototype.hasOwnProperty.call(event, "governance_hash")) {
     errors.push("Missing required field: governance_hash");
-  } else if (String(event.governance_hash || "").trim() === "") {
+  } else if (String(event.governance_hash || "").trim() === "" && !allowsEmptyGovernanceHash(event.event_type)) {
     errors.push("governance_hash must be a non-empty string");
   }
 

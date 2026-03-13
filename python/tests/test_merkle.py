@@ -226,33 +226,33 @@ class TestComputeMerkleGovernanceHash:
         assert tree is not None
 
     def test_merkle_tree_structure(self):
-        """Verify merkle_tree_dict has algorithm, leaf_count, leaves."""
+        """Verify merkle_tree_dict has algorithm, resource_count, resources."""
         _, tree = compute_merkle_governance_hash([
             ("policy", "policy.a", "content A"),
             ("prompt", "prompt.b", "content B"),
             ("tool", "tool.c", "content C"),
         ])
         assert tree["algorithm"] == "sha256"
-        assert tree["leaf_count"] == 3
-        assert len(tree["leaves"]) == 3
+        assert tree["resource_count"] == 3
+        assert len(tree["resources"]) == 3
 
     def test_leaves_sorted_by_hash(self):
-        """Leaves in the returned tree are sorted by hash value."""
+        """Leaves in the returned resources are sorted by hash value."""
         _, tree = compute_merkle_governance_hash([
             ("policy", "policy.z", "ZZZ"),
             ("prompt", "prompt.a", "AAA"),
             ("tool", "tool.m", "MMM"),
         ])
-        hashes = [leaf["hash"] for leaf in tree["leaves"]]
+        hashes = [leaf["hash"] for leaf in tree["resources"]]
         assert hashes == sorted(hashes)
 
     def test_leaf_count_matches_leaves_length(self):
-        """leaf_count equals len(leaves)."""
+        """resource_count equals len(resources)."""
         _, tree = compute_merkle_governance_hash([
             ("policy", "policy.a", "A"),
             ("policy", "policy.b", "B"),
         ])
-        assert tree["leaf_count"] == len(tree["leaves"])
+        assert tree["resource_count"] == len(tree["resources"])
 
     def test_leaf_structure(self):
         """Each leaf has resource_type, resource_name, and hash."""
@@ -260,7 +260,7 @@ class TestComputeMerkleGovernanceHash:
             ("policy", "policy.test", "content"),
             ("tool", "tool.search", "search def"),
         ])
-        for leaf in tree["leaves"]:
+        for leaf in tree["resources"]:
             assert "resource_type" in leaf
             assert "resource_name" in leaf
             assert "hash" in leaf
@@ -354,7 +354,7 @@ class TestMerkleInEvent:
             governance_merkle_tree=tree,
         )
         assert event["hash_type"] == "merkle-sha256"
-        assert event["governance_merkle_tree"]["leaf_count"] == 2
+        assert event["governance_merkle_tree"]["resource_count"] == 2
 
     def test_merkle_root_is_governance_hash(self):
         """The Merkle root returned is used as governance_hash in the event."""
@@ -418,8 +418,8 @@ class TestContextResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 3
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 3
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "prompt", "context"}
 
 
@@ -466,8 +466,8 @@ class TestLineageResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 4
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 4
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "prompt", "lineage", "context"}
 
 
@@ -487,8 +487,8 @@ class TestCustomResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 2
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 2
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "compliance"}
 
     def test_custom_type_domain_separation(self):
@@ -552,8 +552,8 @@ class TestMemoryResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 3
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 3
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "prompt", "memory"}
 
 
@@ -599,8 +599,8 @@ class TestModelResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 3
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 3
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "model", "memory"}
 
     def test_merkle_tree_all_seven_standard_types(self):
@@ -617,13 +617,13 @@ class TestModelResourceType:
         root_hash, merkle_tree = compute_merkle_governance_hash(resources)
         assert len(root_hash) == 64
         assert merkle_tree is not None
-        assert merkle_tree["leaf_count"] == 7
-        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["leaves"]}
+        assert merkle_tree["resource_count"] == 7
+        leaf_types = {leaf["resource_type"] for leaf in merkle_tree["resources"]}
         assert leaf_types == {"policy", "prompt", "tool", "lineage", "context", "memory", "model"}
 
 
 # ===================================================================
-# Inclusion Proof Tests (v0.10.0)
+# Inclusion Proof Tests (v0.12)
 # ===================================================================
 
 class TestInclusionProofs:
@@ -641,7 +641,7 @@ class TestInclusionProofs:
         )
         assert merkle_tree is not None
         assert "inclusion_proofs" in merkle_tree
-        assert len(merkle_tree["inclusion_proofs"]) == merkle_tree["leaf_count"]
+        assert len(merkle_tree["inclusion_proofs"]) == merkle_tree["resource_count"]
 
         for proof_entry in merkle_tree["inclusion_proofs"]:
             assert verify_inclusion_proof(

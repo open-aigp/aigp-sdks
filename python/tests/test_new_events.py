@@ -107,7 +107,7 @@ class TestEmitBasic:
         tracer = trace.get_tracer("test")
         with tracer.start_as_current_span("test-span") as span:
             event = instrumentor.emit("test.event", content="test.event", span=span)
-        assert event["spec_version"] == "0.10.0"
+        assert event["spec_version"] == "0.12"
 
     def test_emit_default_category(self, instrumentor):
         """Default event_category is 'governance'."""
@@ -286,9 +286,9 @@ class TestMerkleTree:
         assert event["governance_hash"] != ""
         assert event["hash_type"] == "merkle-sha256"
         tree = event["governance_merkle_tree"]
-        assert tree["leaf_count"] == 3
+        assert tree["resource_count"] == 3
         assert tree["algorithm"] == "sha256"
-        assert len(tree["leaves"]) == 3
+        assert len(tree["resources"]) == 3
 
     def test_merkle_tree_deterministic(self, instrumentor):
         """Same resources produce the same root hash regardless of call."""
@@ -317,7 +317,7 @@ class TestMerkleTree:
             )
         tree = event["governance_merkle_tree"]
         assert "inclusion_proofs" in tree
-        assert len(tree["inclusion_proofs"]) == tree["leaf_count"]
+        assert len(tree["inclusion_proofs"]) == tree["resource_count"]
 
 
 # ===================================================================

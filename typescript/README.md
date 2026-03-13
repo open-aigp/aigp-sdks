@@ -44,6 +44,6 @@ Success looks like:
 - Delivery reliability helpers: `RetryPolicy`, `ReliableEmitter`
 - CloudEvents transport: `wrapAsCloudEvent`, `unwrapFromCloudEvent`, `buildCEHeaders`
 
-## Compatibility
+## Event Type Normalization
 
-Legacy dotted event names (for example `governance.policy.delivered`) are accepted and normalized to standard AIGP event types (for example `INJECT_SUCCESS`).
+Non-conformant event names (for example `myplatform.audit.login`) are normalized to `UPPER_SNAKE_CASE` (for example `MYPLATFORM_AUDIT_LOGIN`).

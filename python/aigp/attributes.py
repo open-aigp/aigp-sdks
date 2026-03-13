@@ -73,7 +73,7 @@ class AIGPAttributes:
     # -------------------------------------------------------
     # Span Attributes: Merkle Tree Governance
     # -------------------------------------------------------
-    MERKLE_LEAF_COUNT = "aigp.governance.merkle.leaf_count"
+    MERKLE_RESOURCE_COUNT = "aigp.governance.merkle.resource_count"
 
     # -------------------------------------------------------
     # Span Attributes: Denial and Violation

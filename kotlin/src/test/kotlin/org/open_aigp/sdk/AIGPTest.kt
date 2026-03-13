@@ -12,9 +12,9 @@ import kotlin.test.assertTrue
 class AIGPTest {
 
     @Test
-    fun normalizeEventTypeMapsAliases() {
-        assertEquals("INJECT_SUCCESS", normalizeEventType("governance.policy.delivered"))
-        assertEquals("PROMPT_DENIED", normalizeEventType("governance.prompt.denied"))
+    fun normalizeEventTypeNormalizesDottedNames() {
+        assertEquals("GOVERNANCE_POLICY_DELIVERED", normalizeEventType("governance.policy.delivered"))
+        assertEquals("GOVERNANCE_PROMPT_DENIED", normalizeEventType("governance.prompt.denied"))
     }
 
     @Test
@@ -26,17 +26,16 @@ class AIGPTest {
     fun createAndValidateEvent() {
         val event = createAIGPEvent(
             CreateEventOptions(
-                eventType = "governance.policy.delivered",
+                eventType = "INJECT_SUCCESS",
                 eventCategory = "Inject",
                 agentId = "agent.test",
                 governanceHash = computeGovernanceHash("policy", "sha256"),
             )
         )
-
         assertEquals("INJECT_SUCCESS", event.eventType)
         assertEquals("inject", event.eventCategory)
         assertTrue(event.traceId.matches(Regex("^[a-f0-9]{32}$")))
-        assertEquals("0.10.0", event.specVersion)
+        assertEquals("0.12", event.specVersion)
         assertEquals(0, validateAIGPEvent(event).size)
     }
 
@@ -55,7 +54,7 @@ class AIGPTest {
             )
         )
         assertNotNull(multi.merkleTree)
-        assertEquals(2, multi.merkleTree.leafCount)
+        assertEquals(2, multi.merkleTree.resourceCount)
     }
 
     @Test
@@ -155,8 +154,8 @@ class AIGPTest {
         assertFailsWith<IllegalArgumentException> {
             createAIGPEvent(
                 CreateEventOptions(
-                    eventType = "AGENT_REGISTERED",
-                    eventCategory = "agent-lifecycle",
+                    eventType = "INJECT_SUCCESS",
+                    eventCategory = "inject",
                     agentId = "agent.test",
                     governanceHash = "",
                     traceId = "trace-550e8400-e29b-41d4-a716-446655440000",

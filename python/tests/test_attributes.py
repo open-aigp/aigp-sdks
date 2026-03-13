@@ -158,7 +158,7 @@ class TestMerkleAttributes:
     """Merkle tree governance attributes."""
 
     def test_merkle_leaf_count(self):
-        assert AIGPAttributes.MERKLE_LEAF_COUNT == "aigp.governance.merkle.leaf_count"
+        assert AIGPAttributes.MERKLE_RESOURCE_COUNT == "aigp.governance.merkle.resource_count"
 
 
 class TestEnforcementValues:

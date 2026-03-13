@@ -40,25 +40,15 @@ var (
 	sequenceCounters             = map[string]int64{}
 )
 
-var eventTypeAliases = map[string]string{
-	"governance.policy.delivered":    "INJECT_SUCCESS",
-	"governance.policy.denied":       "INJECT_DENIED",
-	"governance.prompt.delivered":    "PROMPT_USED",
-	"governance.prompt.denied":       "PROMPT_DENIED",
-	"governance.policy.violation":    "POLICY_VIOLATION",
-	"governance.a2a.call":            "A2A_CALL",
-	"governance.tool.invoked":        "TOOL_INVOKED",
-	"governance.tool.denied":         "TOOL_DENIED",
-	"governance.boundary.unverified": "UNVERIFIED_BOUNDARY",
-	"governance.inference.started":   "INFERENCE_STARTED",
-	"governance.inference.completed": "INFERENCE_COMPLETED",
-	"governance.inference.blocked":   "INFERENCE_BLOCKED",
-	"governance.model.loaded":        "MODEL_LOADED",
-	"governance.model.switched":      "MODEL_SWITCHED",
-	"governance.memory.read":         "MEMORY_READ",
-	"governance.memory.written":      "MEMORY_WRITTEN",
-	"governance.proof":               "GOVERNANCE_PROOF",
-	"governance.proof.delivered":     "GOVERNANCE_PROOF",
+var emptyGovernanceHashEventTypes = map[string]struct{}{
+	"AGENT_REGISTERED":  {},
+	"AGENT_APPROVED":    {},
+	"AGENT_DEACTIVATED": {},
+}
+
+func allowsEmptyGovernanceHash(eventType string) bool {
+	_, ok := emptyGovernanceHashEventTypes[strings.TrimSpace(eventType)]
+	return ok
 }
 
 type MerkleLeaf struct {
@@ -81,8 +71,8 @@ type MerkleInclusionProof struct {
 
 type GovernanceMerkleTree struct {
 	Algorithm       string                 `json:"algorithm"`
-	LeafCount       int                    `json:"leaf_count"`
-	Leaves          []MerkleLeaf           `json:"leaves"`
+	ResourceCount       int                    `json:"resource_count"`
+	Resources       []MerkleLeaf           `json:"resources,omitempty"`
 	InclusionProofs []MerkleInclusionProof `json:"inclusion_proofs,omitempty"`
 }
 
@@ -252,15 +242,11 @@ func NormalizeEventType(eventType string) (string, error) {
 		return "", errors.New("event_type must be a non-empty string")
 	}
 
-	mapped, ok := eventTypeAliases[raw]
-	if !ok {
-		mapped = raw
-	}
-	if eventTypePattern.MatchString(mapped) {
-		return mapped, nil
+	if eventTypePattern.MatchString(raw) {
+		return raw, nil
 	}
 
-	normalized := strings.ToUpper(regexp.MustCompile(`[^A-Za-z0-9]+`).ReplaceAllString(mapped, "_"))
+	normalized := strings.ToUpper(regexp.MustCompile(`[^A-Za-z0-9]+`).ReplaceAllString(raw, "_"))
 	normalized = strings.Trim(normalized, "_")
 	if normalized == "" || !eventTypePattern.MatchString(normalized) {
 		return "", fmt.Errorf("event_type %q cannot be normalized to valid UPPER_SNAKE_CASE", eventType)
@@ -417,8 +403,8 @@ func ComputeMerkleGovernanceHashWithProofs(resources []Resource, includeInclusio
 
 	tree := &GovernanceMerkleTree{
 		Algorithm: "sha256",
-		LeafCount: len(leaves),
-		Leaves:    leaves,
+		ResourceCount: len(leaves),
+		Resources: leaves,
 	}
 	if includeInclusionProofs {
 		tree.InclusionProofs = BuildInclusionProofs(tree)
@@ -427,7 +413,11 @@ func ComputeMerkleGovernanceHashWithProofs(resources []Resource, includeInclusio
 }
 
 func BuildInclusionProofs(tree *GovernanceMerkleTree) []MerkleInclusionProof {
-	if tree == nil || len(tree.Leaves) == 0 {
+	if tree == nil {
+		return []MerkleInclusionProof{}
+	}
+	resources := tree.Resources
+	if len(resources) == 0 {
 		return []MerkleInclusionProof{}
 	}
 
@@ -436,9 +426,9 @@ func BuildInclusionProofs(tree *GovernanceMerkleTree) []MerkleInclusionProof {
 		LeafIndexes []int
 	}
 
-	proofPaths := make([][]MerkleProofStep, len(tree.Leaves))
-	nodes := make([]node, 0, len(tree.Leaves))
-	for i, leaf := range tree.Leaves {
+	proofPaths := make([][]MerkleProofStep, len(resources))
+	nodes := make([]node, 0, len(resources))
+	for i, leaf := range resources {
 		nodes = append(nodes, node{
 			Hash:        leaf.Hash,
 			LeafIndexes: []int{i},
@@ -477,8 +467,8 @@ func BuildInclusionProofs(tree *GovernanceMerkleTree) []MerkleInclusionProof {
 		nodes = next
 	}
 
-	proofs := make([]MerkleInclusionProof, 0, len(tree.Leaves))
-	for i, leaf := range tree.Leaves {
+	proofs := make([]MerkleInclusionProof, 0, len(resources))
+	for i, leaf := range resources {
 		proofs = append(proofs, MerkleInclusionProof{
 			LeafHash:  leaf.Hash,
 			ProofPath: proofPaths[i],
@@ -543,7 +533,7 @@ func CreateAIGPEvent(opts CreateEventOptions) (AIGPEvent, error) {
 
 	specVersion := opts.SpecVersion
 	if specVersion == "" {
-		specVersion = "0.10.0"
+		specVersion = "0.12"
 	}
 
 	sequenceNumber := opts.SequenceNumber
@@ -551,7 +541,7 @@ func CreateAIGPEvent(opts CreateEventOptions) (AIGPEvent, error) {
 		sequenceNumber = nextSequenceNumber(opts.AgentID, traceID)
 	}
 	governanceHash := strings.TrimSpace(opts.GovernanceHash)
-	if governanceHash == "" {
+	if governanceHash == "" && !allowsEmptyGovernanceHash(eventType) {
 		return AIGPEvent{}, errors.New("governance_hash is required and cannot be empty")
 	}
 
@@ -657,7 +647,7 @@ func ValidateAIGPEvent(event AIGPEvent) []string {
 			errs = append(errs, "trace_id must be 32-char lowercase hex, UUID v4, or trace-/req- prefixed UUID v4")
 		}
 	}
-	if strings.TrimSpace(event.GovernanceHash) == "" {
+	if strings.TrimSpace(event.GovernanceHash) == "" && !allowsEmptyGovernanceHash(event.EventType) {
 		errs = append(errs, "governance_hash must be a non-empty string")
 	}
 	if event.SequenceNumber < 1 {
